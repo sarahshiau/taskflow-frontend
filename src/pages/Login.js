@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginUser } from '../api';
+import { login } from '../api';
 
 // ✅ MUI 元件
 import {
@@ -23,17 +23,26 @@ function Login() {
   };
 
   const handleSubmit = async () => {
+    console.log('👉 handleSubmit 被執行了！', formData);
     if (!formData.email || !formData.password) {
       setError('請填寫所有欄位');
       return;
     }
 
     try {
-      const res = await loginUser(formData);
+      const res = await login(formData);
+      console.log('✅ 登入成功', res);
       localStorage.setItem('token', res.data.token);
       navigate('/dashboard');
     } catch (err) {
-      setError('登入失敗，請確認帳號密碼');
+      console.error('❌ 登入失敗', err);
+      if (err.response) {
+        console.error('👉 錯誤回應:', err.response);
+        setError(`登入失敗: ${err.response.status} ${err.response.data.message || ''}`);
+      } else {
+        console.error('👉 錯誤訊息:', err.message);
+        setError('登入失敗，請檢查網路或伺服器');
+      }
     }
   };
 

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { registerUser } from '../api';
+import { register } from '../api'; // ✅ 確認匯入的名字
 
-// ✅ MUI 元件
 import {
   Container,
   Box,
@@ -15,11 +14,18 @@ import {
 
 function Register() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ username: '', email: '', password: '' });
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+  });
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
-    setFormData({...formData, [e.target.name]: e.target.value });
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
   };
 
   const handleSubmit = async () => {
@@ -29,10 +35,13 @@ function Register() {
     }
 
     try {
-      await registerUser(formData);
+      // ✅ 呼叫正確的 register 函式（從 api.js 匯入）
+      await register(formData.username, formData.email, formData.password);
+      alert('註冊成功！請登入');
       navigate('/login');
     } catch (err) {
       setError('註冊失敗，請確認資料');
+      console.error('註冊錯誤:', err);
     }
   };
 
