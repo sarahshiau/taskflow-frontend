@@ -26,11 +26,6 @@ const Dashboard = () => {
     setTasks(mockTasks);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
-
   return (
     <Box sx={{ padding: 4 }}>
       {/* 標題 */}
