@@ -13,17 +13,21 @@ import {
   Alert,
 } from '@mui/material';
 
-function Login() {
+function Login({ onLogin }) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
 
+ 
   const handleChange = (e) => {
-    setFormData({...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async () => {
-    console.log('👉 handleSubmit 被執行了！', formData);
     if (!formData.email || !formData.password) {
       setError('請填寫所有欄位');
       return;
@@ -31,18 +35,12 @@ function Login() {
 
     try {
       const res = await login(formData);
-      console.log('✅ 登入成功', res);
       localStorage.setItem('token', res.data.token);
+
+      if (onLogin) onLogin();   // 觸發 App.js 的登入狀態變化
       navigate('/dashboard');
     } catch (err) {
-      console.error('❌ 登入失敗', err);
-      if (err.response) {
-        console.error('👉 錯誤回應:', err.response);
-        setError(`登入失敗: ${err.response.status} ${err.response.data.message || ''}`);
-      } else {
-        console.error('👉 錯誤訊息:', err.message);
-        setError('登入失敗，請檢查網路或伺服器');
-      }
+      setError('登入失敗，請確認帳號密碼');
     }
   };
 
@@ -60,7 +58,7 @@ function Login() {
             label="Email"
             name="email"
             value={formData.email}
-            onChange={handleChange}
+            onChange={handleChange} 
             fullWidth
           />
 
@@ -69,7 +67,7 @@ function Login() {
             name="password"
             type="password"
             value={formData.password}
-            onChange={handleChange}
+            onChange={handleChange} 
             fullWidth
           />
 
