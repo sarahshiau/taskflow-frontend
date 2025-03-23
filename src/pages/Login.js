@@ -18,7 +18,7 @@ function Login({ onLogin }) {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
 
- 
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prevData) => ({
@@ -58,7 +58,7 @@ function Login({ onLogin }) {
             label="Email"
             name="email"
             value={formData.email}
-            onChange={handleChange} 
+            onChange={handleChange}
             fullWidth
           />
 
@@ -67,7 +67,7 @@ function Login({ onLogin }) {
             name="password"
             type="password"
             value={formData.password}
-            onChange={handleChange} 
+            onChange={handleChange}
             fullWidth
           />
 
