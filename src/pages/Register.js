@@ -1,96 +1,91 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { register } from '../api'; // ✅ 確認匯入的名字
+// src/pages/Register.js
+import React, { useReducer, useMemo, useRef, useCallback, useId } from "react";
+import { Box, TextField, Button, Typography } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import api from "../api";
 
-import {
-  Container,
-  Box,
-  TextField,
-  Button,
-  Typography,
-  Paper,
-  Alert,
-} from '@mui/material';
-
-function Register() {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-  });
-  const [error, setError] = useState('');
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSubmit = async () => {
-    if (!formData.username || !formData.email || !formData.password) {
-      setError('請填寫所有欄位');
-      return;
-    }
-
-    try {
-      // ✅ 呼叫正確的 register 函式（從 api.js 匯入）
-      await register(formData.username, formData.email, formData.password);
-      alert('註冊成功！請登入');
-      navigate('/login');
-    } catch (err) {
-      setError('註冊失敗，請確認資料');
-      console.error('註冊錯誤:', err);
-    }
-  };
-
-  return (
-    <Container maxWidth="sm">
-      <Paper elevation={3} sx={{ padding: 4, mt: 10 }}>
-        <Typography variant="h5" align="center" gutterBottom>
-          註冊 TaskFlow
-        </Typography>
-
-        {error && <Alert severity="error">{error}</Alert>}
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-          <TextField
-            label="使用者名稱"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            fullWidth
-          />
-
-          <TextField
-            label="Email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            fullWidth
-          />
-
-          <TextField
-            label="密碼"
-            name="password"
-            type="password"
-            value={formData.password}
-            onChange={handleChange}
-            fullWidth
-          />
-
-          <Button variant="contained" onClick={handleSubmit}>
-            註冊
-          </Button>
-
-          <Button variant="text" onClick={() => navigate('/login')}>
-            已有帳號？前往登入
-          </Button>
-        </Box>
-      </Paper>
-    </Container>
-  );
+const initial = { username: "", email: "", password: "" };
+function reducer(state, action) {
+  switch (action.type) {
+    case "change": return { ...state, [action.name]: action.value };
+    case "reset":  return initial;
+    default:       return state;
+  }
 }
 
-export default Register;
+export default function Register() {
+  const [form, dispatch] = useReducer(reducer, initial);      // ✅ [hook] 可維護表單
+  const firstRef = useRef(null);                               // ✅ [優化] 錯誤時聚焦
+  const helpId = useId();                                      // ✅ [a11y]
+  const navigate = useNavigate();
+
+  // ✅ [優化] 衍生提交可用狀態（避免每次 render 重算）
+  const canSubmit = useMemo(() => {
+    return form.username.trim() && form.email.trim() && form.password.length >= 6;
+  }, [form.username, form.email, form.password]);
+
+  const onSubmit = useCallback(async () => {
+    if (!canSubmit) {
+      firstRef.current?.focus();
+      return;
+    }
+    try {
+      // ✅ 關鍵：鍵名必須就是 username / email / password
+      const payload = {
+        username: form.username.trim(),
+        email: form.email.trim(),
+        password: form.password,
+      };
+      const { data } = await api.post("/register", payload);
+      alert("✅ 註冊成功，請用剛剛的 Email 登入");
+      navigate("/login", { replace: true });
+    } catch (err) {
+      // 後端會回 message，包含：必填/密碼太短/重複帳號
+      alert(`❌ 註冊失敗：${err.response?.data?.message || err.message}`);
+      firstRef.current?.focus();
+    }
+  }, [canSubmit, form.username, form.email, form.password, navigate]);
+
+  return (
+    <Box sx={{ maxWidth: 420, mx: "auto", mt: 6 }}>
+      <Typography variant="h5" mb={2}>建立新帳號</Typography>
+
+      <TextField
+        label="使用者名稱"
+        value={form.username}
+        inputRef={firstRef}
+        onChange={(e) => dispatch({ type: "change", name: "username", value: e.target.value })}
+        fullWidth sx={{ mb: 2 }}
+        error={!form.username.trim()}
+        helperText={!form.username.trim() ? "必填" : " "}
+      />
+      <TextField
+        label="Email"
+        type="email"
+        value={form.email}
+        onChange={(e) => dispatch({ type: "change", name: "email", value: e.target.value })}
+        fullWidth sx={{ mb: 2 }}
+        error={!form.email.trim()}
+        helperText={!form.email.trim() ? "必填" : " "}
+        aria-describedby={helpId}
+      />
+      <TextField
+        label="密碼（至少 6 碼）"
+        type="password"
+        value={form.password}
+        onChange={(e) => dispatch({ type: "change", name: "password", value: e.target.value })}
+        fullWidth sx={{ mb: 2 }}
+        error={form.password.length > 0 && form.password.length < 6}
+        helperText={form.password.length > 0 && form.password.length < 6 ? "至少 6 碼" : " "}
+      />
+
+      <Typography id={helpId} variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+        註冊成功後，請用 Email / 密碼登入。
+      </Typography>
+
+      <Button variant="contained" disabled={!canSubmit} onClick={onSubmit}>
+        建立帳號
+      </Button>
+    </Box>
+  );
+}

@@ -1,59 +1,62 @@
+// src/_tests_/Login.test.js
+
+// ---- 先 mock ../api（不要引用外部變數，避免 TDZ）----
+jest.mock('../api', () => {
+  const post = jest.fn();
+  return {
+    __esModule: true,
+    default: { post },
+  };
+});
+
+// ---- mock useNavigate ----
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+// ---- 正常 import ----
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import Login from '../pages/Login';
 import { MemoryRouter } from 'react-router-dom';
-import { login } from '../api';
+import Login from '../pages/Login';
+import api from '../api';
 
-// ✅ Mock useNavigate，因為你在 Login.js 有用 navigate()
-const mockNavigate = jest.fn();
+// ---- 共用 setup ----
+beforeAll(() => {
+  // 避免 jsdom 對 alert Not implemented
+  window.alert = jest.fn();
+});
 
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useNavigate: () => mockNavigate,
-}));
-
-// ✅ Mock login() function（避免真的呼叫 API）
-jest.mock('../api', () => ({
-  login: jest.fn(),
-}));
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockNavigate.mockReset();
+  // 由於我們從 ../api 匯入的是同一個被 mock 的物件，直接重置 post
+  api.post.mockReset();
+  localStorage.clear();
+});
 
 describe('Login Page', () => {
-  beforeEach(() => {
-    // 每次測試前都重置
-    mockNavigate.mockReset();
-    login.mockReset();
-  });
-
-  test('畫面上顯示「登入 TaskFlow」標題', () => {
+  test('畫面上顯示「登入」標題，且初始按鈕為 disabled', () => {
     render(
       <MemoryRouter>
         <Login />
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/登入 TaskFlow/i)).toBeInTheDocument();
+    // 用 heading role 避免和「登入」按鈕衝突
+    expect(screen.getByRole('heading', { name: '登入' })).toBeInTheDocument();
+
+    // 初始登入按鈕應該 disabled
+    expect(screen.getByRole('button', { name: /登入/i })).toBeDisabled();
   });
 
-  test('可以輸入 email 和 密碼', () => {
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-
-    const emailInput = screen.getByLabelText(/Email/i);
-    const passwordInput = screen.getByLabelText(/密碼/i);
-
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-
-    expect(emailInput.value).toBe('test@example.com');
-    expect(passwordInput.value).toBe('password123');
-  });
-
-  test('點擊登入後 ➜ 成功呼叫 login 並跳轉 dashboard', async () => {
-    // 模擬成功登入回傳 token
-    login.mockResolvedValue({ data: { token: 'mock-token' } });
+  test('可以輸入 email/密碼，點擊登入後呼叫 API 並導到 /dashboard', async () => {
+    api.post.mockResolvedValueOnce({ data: { token: 'fake-token' } });
 
     render(
       <MemoryRouter>
@@ -61,56 +64,30 @@ describe('Login Page', () => {
       </MemoryRouter>
     );
 
-    const emailInput = screen.getByLabelText(/Email/i);
-    const passwordInput = screen.getByLabelText(/密碼/i);
-    const loginButton = screen.getByRole('button', { name: /登入/i });
+    // 填表單
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'test@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('密碼（至少 6 碼）'), {
+      target: { value: 'password123' },
+    });
 
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
+    // 按鈕應啟用
+    const loginBtn = screen.getByRole('button', { name: /登入/i });
+    expect(loginBtn).toBeEnabled();
 
-    fireEvent.click(loginButton);
+    // 送出
+    fireEvent.click(loginBtn);
 
+    // 等待 API 被呼叫與導頁
     await waitFor(() => {
-      // 測試 login 被呼叫
-      expect(login).toHaveBeenCalledWith({
+      expect(api.post).toHaveBeenCalledTimes(1);
+      expect(api.post).toHaveBeenCalledWith('/login', {
         email: 'test@example.com',
         password: 'password123',
       });
-
-      // 測試 navigate 被呼叫到 dashboard
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+      expect(localStorage.getItem('token')).toBe('fake-token');
+      expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
     });
-  });
-
-  test('點擊「沒有帳號？前往註冊」跳轉 /register', () => {
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-
-    const registerButton = screen.getByRole('button', { name: /沒有帳號/i });
-
-    fireEvent.click(registerButton);
-
-    expect(mockNavigate).toHaveBeenCalledWith('/register');
-  });
-
-  test('欄位沒填 ➜ 出現錯誤訊息', async () => {
-    render(
-      <MemoryRouter>
-        <Login />
-      </MemoryRouter>
-    );
-
-    const loginButton = screen.getByRole('button', { name: /登入/i });
-
-    fireEvent.click(loginButton);
-
-    // 錯誤訊息出現
-    expect(await screen.findByText(/請填寫所有欄位/i)).toBeInTheDocument();
-
-    // 不會送出 login
-    expect(login).not.toHaveBeenCalled();
   });
 });
